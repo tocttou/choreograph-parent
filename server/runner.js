@@ -10,6 +10,8 @@ const docker = new Docker({ socketPath: '/var/run/docker.sock' });
 const mkdirp = require('mkdirp');
 const byline = require('byline');
 
+let superIo = {};
+
 
 const runLoop = (task, key, service) => {
   scheduler.schedule({ key, expire: service.trigger.repeat, handler: task }, (err) => {
@@ -179,6 +181,7 @@ function perform(configObject) {
                 byline(stream).on('data', (line) => {
                   if (line.toString().trim() !== '') {
                     process.stdout.write(`#=># ${line}\n`);
+                    superIo.emit('inputStream', { stream: `${line}` });
                   }
                 });
               });
@@ -237,11 +240,9 @@ function removeContainer(err, key) {
                 const container = docker.getContainer(row.containerid);
                 container.stop((err) => {
                   if (err) {
-                    console.log(err);
                   } else {
                     container.remove((err, data) => {
                       if (err) {
-                        console.log(err);
                       } else {
                         console.log(`#$#$# Removed container: ${row.containerid.slice(0, 12)} #$#$#`);
                       }
@@ -273,7 +274,8 @@ function initLoopRunner(err, key) {
 
 
 
-export function runner(jobname) {
+export function runner(jobname, io) {
+  superIo = io;
   db.serialize(() => {
     db.get('SELECT rowid AS id, jobname, config FROM workers WHERE jobname = ?', jobname,
       (err, row) => {
@@ -347,11 +349,9 @@ export function stopper(jobname, doc, cb) {
                       const container = docker.getContainer(row.containerid);
                       container.stop((err) => {
                         if (err) {
-                          console.log(err);
                         } else {
                           container.remove((err, data) => {
                             if (err) {
-                              console.log(err);
                             } else {
                               console.log(`#$#$# Removed container: ${row.containerid.slice(0, 12)} #$#$#`);
                               db.run('DELETE FROM containers WHERE jobname = ? AND servicename = ?',

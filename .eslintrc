@@ -22,6 +22,7 @@
     "mocha": true
   },
   "rules": {
+    "no-empty": 0,
     "array-bracket-spacing": [1, "never"],
     "computed-property-spacing": [1, "never"],
     "object-curly-spacing": [1, "always"],

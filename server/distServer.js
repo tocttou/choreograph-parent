@@ -128,7 +128,7 @@ app.post('/api/saveworker', (req, res) => {
                   }
                 });
 
-                runner(req.body.job);
+                runner(req.body.job, io);
 
                 res.json({
                   err: false,
@@ -199,13 +199,13 @@ app.post('/api/removeworker', (req, res) => {
 });
 
 app.get('*', (req, res) => {
-  res.sendFile(path.resolve(__dirname, '../dist/index.html'));
+  res.sendFile(path.resolve(__dirname, '../src/index.html'));
 });
 
 io.on('connection', (socket) => {
 
   socket.on('hello', () => {
-    socket.send('world', { message: 'i iz best' });
+    socket.emit('world');
   });
 
 });

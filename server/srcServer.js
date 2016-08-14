@@ -135,7 +135,7 @@ app.post('/api/saveworker', (req, res) => {
                   }
                 });
 
-                runner(req.body.job);
+                runner(req.body.job, io);
 
                 res.json({
                   err: false,
