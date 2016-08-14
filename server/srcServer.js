@@ -49,6 +49,7 @@ createDb();
 
 function createTable() {
   db.run('CREATE TABLE IF NOT EXISTS workers (jobname TEXT, config TEXT)');
+  db.run('CREATE TABLE IF NOT EXISTS containers (jobname TEXT, servicename TEXT, containerid TEXT)');
 }
 
 // api

@@ -104,6 +104,26 @@ function perform(configObject) {
             }
           }
 
+          let cpu_cores;
+          let cpu_quota;
+          let memory;
+          if (typeof service.constraints !== 'undefined') {
+            if (typeof service.constraints.cpu_cores !== 'undefined') {
+              cpu_cores = service.constraints.cpu_cores;
+              if (typeof cpu_cores === 'number') {
+                cpu_cores = `${cpu_cores}`;
+              }
+            }
+
+            if (typeof service.constraints.cpu_quota !== 'undefined') {
+              cpu_quota = service.constraints.cpu_quota;
+            }
+
+            if (typeof service.constraints.memory !== 'undefined') {
+              memory = service.constraints.memory;
+            }
+          }
+
           docker.createContainer({
             Image: 'tocttou/choreograph-child',
             Cmd: ['/bin/bash', 'runner.sh'],
@@ -111,9 +131,21 @@ function perform(configObject) {
             Tty: true,
             Binds: ['/tmp:/tmp'],
             Env,
+            CpusetCpus: cpu_cores, CpuQuota: cpu_quota, Memory: memory,
             WorkingDir: `/tmp/jobfiles/${key.split('-')[0]}/${key.split('-')[1]}`
           }, (err, container) => {
             if (container) {
+
+              db.run('INSERT INTO containers (jobname, servicename, containerid) VALUES (?, ?, ?)', [
+                key.split('-')[0],
+                key.split('-')[1],
+                container.id
+              ],
+                (err) => {
+                  if (err) {
+                    console.log(`Error in filling containers table. Erro => ${err}`);
+                  }
+                });
 
               if (typeof service.trigger.max_time !== 'undefined') {
                 scheduler.schedule({ key: `${key.split('-')[0]}-${key.split('-')[1]}-${container.id}`,
@@ -170,8 +202,6 @@ function perform(configObject) {
 function removeContainer(err, key) {
   const jobname = key.split('-')[0];
   const servicename = key.split('-')[1];
-  const containerid = key.split('-')[2];
-  const container = docker.getContainer(containerid);
 
   db.get('SELECT rowid AS id, jobname, config FROM workers WHERE jobname = ?', jobname,
     (err, row) => {
@@ -200,19 +230,28 @@ function removeContainer(err, key) {
           }
         }
 
-        container.stop((err) => {
-          if (err) {
-            console.log(err);
-          } else {
-            container.remove((err, data) => {
-              if (err) {
-                console.log(err);
-              } else {
-                console.log(`#$#$# Removed container: ${containerid.slice(0, 12)} #$#$#`);
+        db.all('SELECT rowid AS id, jobname, servicename, containerid FROM containers WHERE jobname = ? AND servicename = ?',
+          jobname, servicename, (err, rows) => {
+            if (rows) {
+              for (const row of rows) {
+                const container = docker.getContainer(row.containerid);
+                container.stop((err) => {
+                  if (err) {
+                    console.log(err);
+                  } else {
+                    container.remove((err, data) => {
+                      if (err) {
+                        console.log(err);
+                      } else {
+                        console.log(`#$#$# Removed container: ${row.containerid.slice(0, 12)} #$#$#`);
+                      }
+                    });
+                  }
+                });
               }
-            });
-          }
-        });
+            }
+          });
+
       }
     });
 }
@@ -299,6 +338,33 @@ export function stopper(jobname, doc, cb) {
           scheduler.cancel({ key: `${key}-starter` }, (err) => {
             if (err) {
               console.log(err);
+            } else {
+
+              db.all('SELECT rowid AS id, jobname, servicename, containerid FROM containers WHERE jobname = ? AND servicename = ?',
+                jobname, service, (err, rows) => {
+                  if (rows) {
+                    for (const row of rows) {
+                      const container = docker.getContainer(row.containerid);
+                      container.stop((err) => {
+                        if (err) {
+                          console.log(err);
+                        } else {
+                          container.remove((err, data) => {
+                            if (err) {
+                              console.log(err);
+                            } else {
+                              console.log(`#$#$# Removed container: ${row.containerid.slice(0, 12)} #$#$#`);
+                              db.run('DELETE FROM containers WHERE jobname = ? AND servicename = ?',
+                                [jobname, service],
+                                () => {
+                                });
+                            }
+                          });
+                        }
+                      });
+                    }
+                  }
+                });
             }
           });
         }
