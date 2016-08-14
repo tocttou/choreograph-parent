@@ -9,7 +9,7 @@
     "build:html": "babel-node server/buildHTML.js",
     "build": "npm-run-all clean-dist test lint:build build:html && babel-node server/build.js",
     "build:alias": "babel-node server/build.js",
-    "start": "node server/start.js",
+    "start": "node_modules/.bin/forever start server/start.js",
     "open:src": "babel-node server/srcServer.js",
     "lint": "esw webpack.config.* src server",
     "lint:build": "node_modules/.bin/esw webpack.config.* src server -c ./.eslintrc-build",
@@ -17,14 +17,16 @@
     "lint:fix": "eslint src server webpack.config.* --fix",
     "test": "mocha --reporter spec server/testSetup.js \"src/**/*.test.js\"",
     "test:watch": "npm run test -- --watch",
-    "dev": "babel-node server/startMessage.js && npm-run-all --parallel open:src lint:watch test:watch"
+    "dev": "node_modules/.bin/forever start -c node_modules/.bin/babel-node server/startMessage.js && npm-run-all --parallel open:src lint:watch test:watch"
   },
   "author": "Ashish Chaudhary",
   "license": "MIT",
   "dependencies": {
     "body-parser": "^1.15.2",
+    "byline": "^5.0.0",
     "dockerode": "^2.3.0",
     "express": "^4.14.0",
+    "forever": "^0.15.2",
     "jquery": "^3.1.0",
     "material-ui": "^0.15.2",
     "mkdirp": "^0.5.1",
