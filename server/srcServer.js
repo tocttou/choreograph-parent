@@ -3,6 +3,7 @@ import webpack from 'webpack';
 import path from 'path';
 import config from '../webpack.config.dev';
 import bodyParser from 'body-parser';
+import { runner } from './runner';
 import colors from 'colors';
 
 /* eslint-disable no-console */
@@ -132,6 +133,8 @@ app.post('/api/saveworker', (req, res) => {
                     }
                   }
                 });
+
+                runner(req.body.job);
 
                 res.json({
                   err: false,

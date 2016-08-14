@@ -1,5 +1,5 @@
 {
-  "name": "choreograph-web",
+  "name": "choreograph-parent",
   "version": "1.0.0",
   "description": "An OSS tool to orchestrate docker based workers. Comes with a web-UI and an API.",
   "main": "",
@@ -34,6 +34,7 @@
     "react-router": "^2.5.2",
     "react-router-redux": "^4.0.5",
     "react-tap-event-plugin": "^1.0.0",
+    "redis-scheduler": "^1.0.0",
     "redux": "^3.5.2",
     "redux-thunk": "^2.1.0",
     "semantic-ui-css": "^2.2.1",
@@ -89,6 +90,6 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/tocttou/choreograph-web"
+    "url": "https://github.com/tocttou/choreograph-parent"
   }
 }

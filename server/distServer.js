@@ -2,6 +2,7 @@ import express from 'express';
 import path from 'path';
 import compression from 'compression';
 import bodyParser from 'body-parser';
+import { runner } from './runner';
 
 
 /* eslint-disable no-console */
@@ -14,6 +15,9 @@ const app = express();
 const fs = require('fs');
 const http = require('http').Server(app);
 let io = require('socket.io')(http);
+const sqlite3 = require('sqlite3').verbose();
+const mkdirp = require('mkdirp');
+let db;
 
 app.use(bodyParser.urlencoded({ limit: '500mb', extended: true }));
 app.use(bodyParser.json({ limit: '500mb' }));
@@ -26,6 +30,126 @@ app.use((req, res, next) => {
 
 app.use(compression());
 app.use(express.static('dist'));
+
+// db functions
+
+function createDb() {
+  db = new sqlite3.Database('choreoworkers.sqlite3', createTable);
+}
+
+createDb();
+
+
+function createTable() {
+  db.run('CREATE TABLE IF NOT EXISTS workers (jobname TEXT, config TEXT)');
+}
+
+// api
+
+app.post('/api/saveworker', (req, res) => {
+  try {
+    if (Object.keys(req.body).length) {
+      db.serialize(() => {
+        db.get('SELECT rowid AS id, jobname, config FROM workers WHERE jobname = ?', req.body.job,
+          (err, row) => {
+            if (row) {
+              res.json({
+                err: true,
+                message: `Job: ${req.body.job} already exists`
+              });
+            } else {
+              db.run('INSERT INTO workers (jobname, config) VALUES (?, ?)', [
+                req.body.job,
+                JSON.stringify(req.body).replace(/"/g, '\'')
+              ], (err) => {
+
+                mkdirp('jobfiles', (err) => {
+                  if (err) {
+                    res.json({
+                      err: true,
+                      message: `Cannot create folder for job files. Error: ${err}`
+                    });
+                    return null;
+                  } else {
+                    const doc = req.body;
+                    for (let service of Object.keys(doc)) {
+                      if (service !== 'job' && service !== 'nodes') {
+                        mkdirp(`jobfiles/${doc.job}/${service}`, (err) => {
+
+                          if (err) {
+                            res.json({
+                              err: true,
+                              message: `Cannot create folder for job files. Error: ${err}`
+                            });
+                            return null;
+                          } else {
+
+                            if (typeof doc[service].payload === 'object') {
+                              for (const filename of Object.keys(doc[service].payload)) {
+                                fs.writeFile(`jobfiles/${doc.job}/${service}/${filename}`,
+                                  doc[service].payload[filename], (err) => {
+                                    if (err) {
+                                      res.json({
+                                        err: true,
+                                        message: `Cannot create folder for job files. Error: ${err}`
+                                      });
+                                      return null;
+                                    }
+                                  });
+                              }
+                            }
+                          }
+
+                          if (typeof doc[service].exec !== 'undefined') {
+                            for (const execType of Object.keys(doc[service].exec)) {
+                              if (execType !== 'bash') {
+                                if (typeof doc[service].exec[execType] === 'object') {
+                                  for (const filename of Object.keys(doc[service].exec[execType])) {
+                                    fs.writeFile(`jobfiles/${doc.job}/${service}/${filename}`,
+                                      doc[service].exec[execType][filename], (err) => {
+                                        if (err) {
+                                          res.json({
+                                            err: true,
+                                            message: `Cannot create folder for job files. Error: ${err}`
+                                          });
+                                          return null;
+                                        }
+                                      });
+                                  }
+                                }
+                              }
+                            }
+                          }
+
+                        });
+                      }
+                    }
+                  }
+                });
+
+                runner(req.body.job);
+
+                res.json({
+                  err: false,
+                  message: `Job: ${req.body.job} created`
+                });
+              });
+            }
+          });
+      });
+    } else {
+      res.json({
+        err: true,
+        message: 'Empty config received'
+      });
+    }
+  } catch (err) {
+    res.json({
+      err: true,
+      message: 'Malformed request received'
+    });
+  }
+});
 
 app.get('*', (req, res) => {
   res.sendFile(path.resolve(__dirname, '../dist/index.html'));
