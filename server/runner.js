@@ -73,12 +73,20 @@ function perform(configObject) {
               }
             });
 
+          const Env = [];
+          if (typeof service.environment !== 'undefined') {
+            for (const env of Object.keys(service.environment)) {
+              Env.push(`${env}=${service.environment[env]}`);
+            }
+          }
+
           docker.createContainer({
             Image: 'tocttou/choreograph-child',
             Cmd: ['/bin/bash', 'runner.sh'],
             NetworkMode: 'host',
             Tty: true,
             Binds: ['/tmp:/tmp'],
+            Env,
             WorkingDir: `/tmp/jobfiles/${key.split('-')[0]}/${key.split('-')[1]}`
           }, (err, container) => {
             if (container) {
