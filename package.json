@@ -44,6 +44,7 @@
     "socket.io": "^1.4.6",
     "socket.io-client": "^1.4.6",
     "sqlite3": "^3.1.4",
+    "superagent": "^2.2.0",
     "toastr": "^2.1.2"
   },
   "devDependencies": {

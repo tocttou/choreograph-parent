@@ -1,3 +1,5 @@
+import request from 'superagent';
+
 const sqlite3 = require('sqlite3').verbose();
 const db = new sqlite3.Database('choreoworkers.sqlite3');
 const Scheduler = require('redis-scheduler');
@@ -7,6 +9,7 @@ const Docker = require('dockerode');
 const docker = new Docker({ socketPath: '/var/run/docker.sock' });
 const mkdirp = require('mkdirp');
 const byline = require('byline');
+
 
 const runLoop = (task, key, service) => {
   scheduler.schedule({ key, expire: service.trigger.repeat, handler: task }, (err) => {
@@ -74,9 +77,30 @@ function perform(configObject) {
             });
 
           const Env = [];
-          if (typeof service.environment !== 'undefined') {
+          if (typeof service.environment === 'object') {
             for (const env of Object.keys(service.environment)) {
               Env.push(`${env}=${service.environment[env]}`);
+            }
+          }
+
+          if (typeof service.prewebhook === 'object') {
+            for (const hookURL of service.prewebhook) {
+              const r = request
+                .post(hookURL)
+                .send({
+                  job: key.split('-')[0],
+                  service: key.split('-')[1],
+                  type: 'prewebhook'
+                })
+                .set('Content-Type', 'application/json')
+                .end((err, res) => {
+                  if (err) {
+                    console.log(`Error occured at prewebhook: ${hookURL}`);
+                  }
+                });
+              setTimeout(() => {
+                r.abort();
+              }, 3000);
             }
           }
 
@@ -92,8 +116,29 @@ function perform(configObject) {
             if (container) {
 
               if (typeof service.trigger.max_time !== 'undefined') {
-                scheduler.schedule({ key: `${key.split('-')[0]}-${container.id}`,
+                scheduler.schedule({ key: `${key.split('-')[0]}-${key.split('-')[1]}-${container.id}`,
                   expire: service.trigger.max_time, handler: removeContainer });
+              }
+
+              if (typeof service.webhook === 'object') {
+                for (const hookURL of service.webhook) {
+                  const r = request
+                    .post(hookURL)
+                    .send({
+                      job: key.split('-')[0],
+                      service: key.split('-')[1],
+                      type: 'webhook'
+                    })
+                    .set('Content-Type', 'application/json')
+                    .end((err, res) => {
+                      if (err) {
+                        console.log(`Error occured at webhook: ${hookURL}`);
+                      }
+                    });
+                  setTimeout(() => {
+                    r.abort();
+                  }, 3000);
+                }
               }
 
               console.log(`#$#$# Job: ${key.split('-')[0]} - Service: ${key.split('-')[1]} #$#$#`);
@@ -107,7 +152,6 @@ function perform(configObject) {
               });
 
               container.start((err, data) => {
-                console.log(data);
                 if (err) {
                   console.log('\nCannot create job container');
                 }
@@ -124,21 +168,53 @@ function perform(configObject) {
 }
 
 function removeContainer(err, key) {
-  const containerid = key.split('-')[1];
+  const jobname = key.split('-')[0];
+  const servicename = key.split('-')[1];
+  const containerid = key.split('-')[2];
   const container = docker.getContainer(containerid);
-  container.stop((err) => {
-    if (err) {
-      console.log(err);
-    } else {
-      container.remove((err, data) => {
-        if (err) {
-          console.log(err);
-        } else {
-          console.log(`#$#$# Removed container: ${containerid.slice(0, 12)} #$#$#`);
+
+  db.get('SELECT rowid AS id, jobname, config FROM workers WHERE jobname = ?', jobname,
+    (err, row) => {
+      if (row) {
+        const doc = JSON.parse(row.config.replace(/'/g, '"'));
+        const service = doc[servicename];
+
+        if (typeof service.timeoutwebhook === 'object') {
+          for (const hookURL of service.timeoutwebhook) {
+            const r = request
+              .post(hookURL)
+              .send({
+                job: key.split('-')[0],
+                service: key.split('-')[1],
+                type: 'timeoutwebhook'
+              })
+              .set('Content-Type', 'application/json')
+              .end((err, res) => {
+                if (err) {
+                  console.log(`Error occured at timeoutwebhook: ${hookURL}`);
+                }
+              });
+            setTimeout(() => {
+              r.abort();
+            }, 3000);
+          }
         }
-      });
-    }
-  });
+
+        container.stop((err) => {
+          if (err) {
+            console.log(err);
+          } else {
+            container.remove((err, data) => {
+              if (err) {
+                console.log(err);
+              } else {
+                console.log(`#$#$# Removed container: ${containerid.slice(0, 12)} #$#$#`);
+              }
+            });
+          }
+        });
+      }
+    });
 }
 
 function initLoopRunner(err, key) {
