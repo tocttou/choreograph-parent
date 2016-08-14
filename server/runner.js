@@ -203,3 +203,26 @@ export function runner(jobname) {
       });
   });
 }
+
+export function stopper(jobname, doc, cb) {
+  for (const service of Object.keys(doc)) {
+    if (service !== 'job' && service !== 'nodes') {
+      const key = `${jobname}-${service}`;
+      scheduler.cancel({ key }, (err) => {
+        if (err) {
+          console.log(err);
+        } else {
+          scheduler.cancel({ key: `${key}-starter` }, (err) => {
+            if (err) {
+              console.log(err);
+            }
+          });
+        }
+      });
+    }
+  }
+  db.run('DELETE FROM workers WHERE jobname = ?', jobname,
+    () => {
+      cb();
+    });
+}

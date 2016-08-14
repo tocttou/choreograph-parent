@@ -3,7 +3,7 @@ import webpack from 'webpack';
 import path from 'path';
 import config from '../webpack.config.dev';
 import bodyParser from 'body-parser';
-import { runner } from './runner';
+import { runner, stopper } from './runner';
 import colors from 'colors';
 
 /* eslint-disable no-console */
@@ -158,6 +158,51 @@ app.post('/api/saveworker', (req, res) => {
   }
 });
 
+app.get('/api/getworkers', (req, res) => {
+  db.all('SELECT rowid AS id, jobname, config FROM workers',
+    (err, rows) => {
+      const toSend = {};
+      if (rows) {
+        for (const row of rows) {
+          toSend[row.jobname] = Object.keys(JSON.parse(row.config.replace(/'/g, '"')))
+            .filter((value) => !!(value !== 'nodes' && value !== 'job'));
+        }
+        res.json(toSend);
+      } else {
+        res.json({
+          err: true,
+          message: 'No workers found'
+        });
+      }
+    });
+});
+
+app.post('/api/removeworker', (req, res) => {
+  db.get('SELECT rowid AS id, jobname, config FROM workers WHERE jobname = ?', req.body.job,
+    (err, row) => {
+      if (row) {
+        const doc = JSON.parse(row.config.replace(/'/g, '"'));
+        stopper(req.body.job, doc, (err) => {
+          if (err) {
+            res.json({
+              err: true,
+              message: `Cannot cancel schedule, Error => ${err}`
+            });
+          } else {
+            res.json({
+              err: false,
+              message: `Removed job: ${req.body.job}`
+            });
+          }
+        });
+      } else {
+        res.json({
+          err: true,
+          message: 'No workers found'
+        });
+      }
+    });
+});
 
 app.get('*', (req, res) => {
   res.sendFile(path.resolve(__dirname, '../src/index.html'));
