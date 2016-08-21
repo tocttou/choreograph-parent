@@ -21,29 +21,31 @@ class HomePage extends React.Component {
 
   render() {
     return (
-      <div className="ui very relaxed stackable centered grid">
-        <div className="ui fluid row">
-          <div className="one column row">
-            <div className="column">
-              <div className="ui card" style={{ width: '100%' }}>
-                <div className="content">
-                  <div className="header">Terminal</div>
-                </div>
-                <div className="content">
-                  <div className="ui padded raised segment container"
-                       style={{ height: '52vh', backgroundColor: 'black',
-                         color: 'white', overflowY: 'scroll' }}
-                  >
-                    {this.state.terminalData.map((data) =>
-                      <p key={Math.random()}>{data}</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
+      <div className="ui very relaxed stackable container grid">
+        <div className="ui row">
+          <iframe width="560" height="315" src="https://www.youtube.com/embed/GzpasVWDx6g" frameBorder="0" allowFullScreen></iframe>
+        </div>
+        <div className="ui row">
+          <br />
+          <div className="ui info message">
+            Files used in the demo are given here.
           </div>
         </div>
-
+        <div className="ui row">
+          <a href="https://gist.github.com/tocttou/2c49c15b35a6bd47caf8e2d508fe1351">.choreo.yml</a>
+        </div>
+        <div className="ui row">
+          <a href="https://gist.github.com/tocttou/3ae4eed85fb911f9d819c82615c37dc4">payload/file1.json</a>
+        </div>
+        <div className="ui row">
+          <a href="https://gist.github.com/tocttou/129039e181b4795fa47f12d2446001c7">payload/file2.txt</a>
+        </div>
+        <div className="ui row">
+          <a href="https://gist.github.com/tocttou/cd9c0ed3ea224d71662ea1ca5796785b">payload/app.py</a>
+        </div>
+        <div className="ui row">
+          <a href="https://gist.github.com/tocttou/4e9e4722d5b4294f73d21792cf345307">payload/app.js</a>
+        </div>
       </div>
     );
   }
