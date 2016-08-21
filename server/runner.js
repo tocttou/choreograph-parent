@@ -97,6 +97,9 @@ function perform(configObject) {
                 .set('Content-Type', 'application/json')
                 .end((err, res) => {
                   if (err) {
+                    superIo.emit('webhookerror', {
+                      jobname: key.split('-')[0], service: key.split('-')[1], type: 'prewebhook', errurl: hookURL
+                    });
                     console.log(`Error occured at prewebhook: ${hookURL}`);
                   }
                 });
@@ -166,6 +169,9 @@ function perform(configObject) {
                     .set('Content-Type', 'application/json')
                     .end((err, res) => {
                       if (err) {
+                        superIo.emit('webhookerror', {
+                          jobname: key.split('-')[0], service: key.split('-')[1], type: 'webhook', errurl: hookURL
+                        });
                         console.log(`Error occured at webhook: ${hookURL}`);
                       }
                     });
@@ -181,14 +187,26 @@ function perform(configObject) {
                 byline(stream).on('data', (line) => {
                   if (line.toString().trim() !== '') {
                     process.stdout.write(`#=># ${line}\n`);
-                    superIo.emit('inputStream', { stream: `${line}` });
+                    superIo.emit('inputStream', { jobname: key.split('-')[0], service: key.split('-')[1], stream: `${line}` });
                   }
+                });
+                byline(stream).on('error', (line) => {
+                  if (line.toString().trim() !== '') {
+                    process.stdout.write(`#=># ${line}\n`);
+                    superIo.emit('inputStream', { jobname: key.split('-')[0], service: key.split('-')[1], stream: `${line}` });
+                  }
+                });
+                stream.on('end', () => {
+                  superIo.emit('containerexited', { jobname: key.split('-')[0],
+                    service: key.split('-')[1], containerid: `${container.id}` });
                 });
               });
 
               container.start((err, data) => {
                 if (err) {
                   console.log('\nCannot create job container');
+                } else {
+                  superIo.emit('containeradded', { jobname: key.split('-')[0], service: key.split('-')[1], containerid: `${container.id}` });
                 }
               });
             }
@@ -224,6 +242,9 @@ function removeContainer(err, key) {
               .set('Content-Type', 'application/json')
               .end((err, res) => {
                 if (err) {
+                  superIo.emit('webhookerror', {
+                    jobname: key.split('-')[0], service: key.split('-')[1], type: 'timeoutwebhook', errurl: hookURL
+                  });
                   console.log(`Error occured at timeoutwebhook: ${hookURL}`);
                 }
               });
@@ -245,6 +266,7 @@ function removeContainer(err, key) {
                       if (err) {
                       } else {
                         console.log(`#$#$# Removed container: ${row.containerid.slice(0, 12)} #$#$#`);
+                        superIo.emit('containertimedout', { jobname, service: servicename, containerid: `${row.containerid}` });
                       }
                     });
                   }
@@ -349,16 +371,17 @@ export function stopper(jobname, doc, cb) {
                       const container = docker.getContainer(row.containerid);
                       container.stop((err) => {
                         if (err) {
+                          db.run('DELETE FROM containers WHERE jobname = ? AND servicename = ?',
+                            [jobname, service],
+                            () => {
+                            });
                         } else {
                           container.remove((err, data) => {
-                            if (err) {
-                            } else {
-                              console.log(`#$#$# Removed container: ${row.containerid.slice(0, 12)} #$#$#`);
-                              db.run('DELETE FROM containers WHERE jobname = ? AND servicename = ?',
-                                [jobname, service],
-                                () => {
-                                });
-                            }
+                            console.log(`#$#$# Removed container: ${row.containerid.slice(0, 12)} #$#$#`);
+                            db.run('DELETE FROM containers WHERE jobname = ? AND servicename = ?',
+                              [jobname, service],
+                              () => {
+                              });
                           });
                         }
                       });
@@ -375,4 +398,15 @@ export function stopper(jobname, doc, cb) {
     () => {
       cb();
     });
+}
+
+export function removeContainerById(jobname, containerid) {
+  const container = docker.getContainer(containerid);
+  container.stop((err) => {
+    if (err) {
+    } else {
+      container.remove();
+    }
+  });
+  db.run('DELETE FROM containers WHERE jobname = ?', jobname);
 }

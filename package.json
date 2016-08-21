@@ -30,6 +30,8 @@
     "jquery": "^3.1.0",
     "material-ui": "^0.15.2",
     "mkdirp": "^0.5.1",
+    "os-usage": "git+https://github.com/ningt/os-usage.git",
+    "os-utils": "0.0.14",
     "react": "^15.2.1",
     "react-dom": "^15.2.1",
     "react-redux": "^4.4.5",

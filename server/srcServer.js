@@ -3,7 +3,7 @@ import webpack from 'webpack';
 import path from 'path';
 import config from '../webpack.config.dev';
 import bodyParser from 'body-parser';
-import { runner, stopper } from './runner';
+import { runner, stopper, removeContainerById } from './runner';
 import colors from 'colors';
 
 /* eslint-disable no-console */
@@ -19,6 +19,7 @@ const io = require('socket.io')(http);
 const sqlite3 = require('sqlite3').verbose();
 const fs = require('fs');
 const mkdirp = require('mkdirp');
+const osutils  = require('os-utils');
 let db;
 
 app.use(bodyParser.urlencoded({ limit: '500mb', extended: true }));
@@ -197,6 +198,14 @@ app.post('/api/removeworker', (req, res) => {
           }
         });
       } else {
+        db.all('SELECT containerid FROM containers WHERE jobname = ?', req.body.job,
+          (err, rows) => {
+            if (rows.length > 0) {
+              for (let row of rows) {
+                removeContainerById(req.body.job, row.containerid);
+              }
+            }
+          });
         res.json({
           err: true,
           message: 'No workers found'
@@ -204,6 +213,7 @@ app.post('/api/removeworker', (req, res) => {
       }
     });
 });
+
 
 app.get('*', (req, res) => {
   res.sendFile(path.resolve(__dirname, '../src/index.html'));
@@ -214,6 +224,29 @@ io.on('connection', (socket) => {
   socket.on('hello', () => {
     socket.emit('world');
   });
+
+  socket.on('checkstatus', (data) => {
+    setInterval(() => {
+      db.get('SELECT * FROM workers WHERE jobname = ?', data.jobname,
+        (err, row) => {
+          if (err) {
+            socket.emit('runstatus', { status: false });
+          }
+          if (row) {
+            socket.emit('runstatus', { status: true });
+          } else {
+            socket.emit('runstatus', { status: false });
+          }
+        });
+    }, 1000);
+  });
+
+  setInterval(() => {
+    osutils.cpuUsage((usedCpu) => {
+      let freeMem = osutils.freememPercentage();
+      socket.emit('usagestats', [usedCpu, 1 - freeMem]);
+    });
+  }, 1000);
 
 });
 
